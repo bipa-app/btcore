@@ -21,7 +21,7 @@ sleep 3 # We have to wait for the RPC to initialize
 
 CARGO_TEST_ARG=$1
 
-cargo test --locked --workspace -- --test-threads=1 $CARGO_TEST_ARG
+cargo test --locked --workspace -- --nocapture --test-threads=1 $CARGO_TEST_ARG
 docker stop $CONTAINTER_HASH > /dev/null
 
 echo "Container stoped."
