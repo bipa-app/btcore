@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: btc-rs-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: 1.67.1
+            profile: minimal
+            components: clippy
+            default: true
+
+      - uses: Swatinem/rust-cache@v1
+
+      - run: ./test
