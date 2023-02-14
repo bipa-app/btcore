@@ -1,0 +1,9 @@
+[package]
+name = "btc-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitcoin = { version= "0.29.0", features=["std"], default-features = false }
+bitcoincore-rpc = { branch = "master", git = "https://github.com/bipa-app/rust-bitcoincore-rpc.git"}
+tokio = { version = "1.12.0", features = ["rt", "macros"], default-features = false }
