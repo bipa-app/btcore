@@ -10,16 +10,10 @@ pub struct Btc {
     client: Arc<bitcoincore_rpc::Client>,
 }
 
-pub struct BtcParams {
-    rpc_user: String,
-    rpc_password: String,
-    rpc_url: String,
-}
+pub fn build(rpc_user: &str, rpc_password: &str, rpc_url: &str) -> bitcoincore_rpc::Result<Btc> {
+    let auth = bitcoincore_rpc::Auth::UserPass(rpc_user.into(), rpc_password.into());
 
-pub fn build(params: BtcParams) -> bitcoincore_rpc::Result<Btc> {
-    let auth = bitcoincore_rpc::Auth::UserPass(params.rpc_user, params.rpc_password);
-
-    bitcoincore_rpc::Client::new(&params.rpc_url, auth).map(|client| Btc {
+    bitcoincore_rpc::Client::new(rpc_url, auth).map(|client| Btc {
         client: Arc::new(client),
     })
 }
