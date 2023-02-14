@@ -11,9 +11,9 @@ pub struct Btc {
 }
 
 pub struct BtcParams {
-    rpc_user: String,
-    rpc_password: String,
-    rpc_url: String,
+    pub rpc_user: String,
+    pub rpc_password: String,
+    pub rpc_url: String,
 }
 
 pub fn build(params: BtcParams) -> bitcoincore_rpc::Result<Btc> {
