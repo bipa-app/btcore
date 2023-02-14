@@ -205,16 +205,9 @@ mod test {
             let client = self.client.clone();
             let wallet_name = wallet_name.to_owned();
 
-            match tokio::task::spawn_blocking(move || client.unload_wallet(Some(&wallet_name)))
+            tokio::task::spawn_blocking(move || client.unload_wallet(Some(&wallet_name)))
                 .await
                 .unwrap()
-            {
-                Err(e) => {
-                    println!("Unload wallet error: {e}");
-                    Ok(())
-                }
-                _ => Ok(()),
-            }
         }
 
         fn delete_wallet(&self, wallet_name: &str) -> Result<(), std::io::Error> {
@@ -226,8 +219,8 @@ mod test {
         }
 
         pub async fn reset_regtest(&self, wallet_name: &str) -> Result<(), bitcoincore_rpc::Error> {
-            self.unload_wallet(wallet_name).await?;
-            self.delete_wallet(wallet_name)?;
+            self.unload_wallet(wallet_name).await.ok();
+            self.delete_wallet(wallet_name).ok();
             self.invalidate_all_blocks().await;
             self.create_wallet(wallet_name.into()).await?;
 
