@@ -3,6 +3,9 @@ name = "btc-rs"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "btc"
+
 [dependencies]
 bitcoin = { version= "0.29.0", features=["std"], default-features = false }
 bitcoincore-rpc = { branch = "master", git = "https://github.com/bipa-app/rust-bitcoincore-rpc.git"}
