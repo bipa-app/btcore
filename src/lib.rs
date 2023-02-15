@@ -299,12 +299,7 @@ mod test {
 
         assert_eq!(balance, bitcoin::Amount::ZERO);
 
-        let address = client
-            .generate_address_async(bitcoincore_rpc::json::AddressType::P2shSegwit)
-            .await
-            .unwrap();
-
-        client.generate_to_address(address).await.unwrap();
+        client.generate_one_spendable_output().await.unwrap();
 
         let amount = client.get_balance(None).await.unwrap();
 
@@ -318,12 +313,7 @@ mod test {
 
         assert_eq!(number_of_transactions, 0);
 
-        let address = client
-            .generate_address_async(bitcoincore_rpc::json::AddressType::P2shSegwit)
-            .await
-            .unwrap();
-
-        client.generate_to_address(address).await.unwrap();
+        client.generate_n_blocks(101, false).await.unwrap();
 
         let number_of_transactions = client.list_transactions(1000).await.unwrap().len();
 
