@@ -346,4 +346,24 @@ mod test {
 
         assert_eq!(transactions.len(), 0) // No seen tx with 1 conf since block_hash
     }
+
+    #[tokio::test]
+    async fn test_get_balances() {
+        let client = build_for_test().await.unwrap();
+        let balances = client.get_balances().await.unwrap();
+
+        assert_eq!(balances.mine.trusted, Amount::ZERO);
+
+        client.generate_one_spendable_output().await.unwrap();
+
+        let balances = client.get_balances().await.unwrap();
+
+        assert_eq!(balances.mine.trusted, Amount::from_btc(50.0).unwrap());
+
+        client.invalidate_all_blocks().await;
+
+        let balances = client.get_balances().await.unwrap();
+
+        assert_eq!(balances.mine.trusted, Amount::ZERO);
+    }
 }
