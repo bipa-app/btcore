@@ -162,7 +162,7 @@ pub struct TransactionFee {
 mod test {
     use super::*;
     use bitcoincore_rpc::{bitcoincore_rpc_json::LoadWalletResult, RpcApi};
-    use std::sync::Arc;
+    use std::{str::FromStr, sync::Arc};
 
     async fn build_for_test() -> bitcoincore_rpc::Result<Btc> {
         const USERNAME: &str = "dev";
@@ -221,11 +221,19 @@ mod test {
             Ok(())
         }
 
-        async fn invalidate_all_blocks(&self) {
+        pub async fn get_best_block_hash(&self) -> bitcoincore_rpc::Result<BlockHash> {
             let client = self.client.clone();
 
+            tokio::task::spawn_blocking(move || client.get_best_block_hash())
+                .await
+                .unwrap()
+        }
+
+        async fn invalidate_all_blocks(&self) {
+            let client = self.client.clone();
+            let mut current_block_hash = self.get_best_block_hash().await.unwrap();
+
             tokio::task::spawn_blocking(move || {
-                let mut current_block_hash = client.get_best_block_hash().unwrap();
                 let current_block_height = client.get_block_count().unwrap();
 
                 for _ in (0..current_block_height).rev() {
@@ -245,22 +253,42 @@ mod test {
             .unwrap();
         }
 
-        /// Generates 101 blocks and sends the subsidy to the address specified.
-        /// We need generate 101 blocks in order to be able to spend the first subsidy, as every
-        /// subsidy is locked up by 100 blocks.
+        /// Generates `block_num` blocks and sends the block subsidy to an address.
+        /// The `address` parameter is optional, allowing for the "burning" of the subsidy by sending it
+        /// to an address not contained in the wallet.
         ///
         /// # Arguments
         ///
-        /// * `address`: The address to send the subsidy to
-        pub async fn generate_to_address(
+        /// * `block_num`: The number of blocks to generate.
+        /// * `address`: The address to which the coins will be sent.
+        pub async fn generate_n_blocks(
             &self,
-            address: bitcoin::Address,
+            block_num: u64,
+            burn_coins: bool,
         ) -> bitcoincore_rpc::Result<Vec<bitcoin::BlockHash>> {
             let client = self.client.clone();
 
-            tokio::task::spawn_blocking(move || client.generate_to_address(101, &address))
+            let address = if burn_coins {
+                Address::from_str("bcrt1qs758ursh4q9z627kt3pp5yysm78ddny6txaqgw").unwrap()
+            } else {
+                self.generate_address_async(AddressType::P2shSegwit)
+                    .await
+                    .unwrap()
+            };
+
+            tokio::task::spawn_blocking(move || client.generate_to_address(block_num, &address))
                 .await
                 .unwrap()
+        }
+
+        /// In Bitcoin, block subsidies are "locked" for 100 blocks, which means that the first subsidy can
+        /// only be spent after 100 confirmations. This function mines 101 blocks and sends the subsidy of
+        /// the first block to an address controlled by the wallet, allowing for immediate spending.
+        pub async fn generate_one_spendable_output(&self) -> bitcoincore_rpc::Result<()> {
+            self.generate_n_blocks(1, false).await?;
+            self.generate_n_blocks(100, true).await?;
+
+            Ok(())
         }
     }
 
@@ -271,12 +299,7 @@ mod test {
 
         assert_eq!(balance, bitcoin::Amount::ZERO);
 
-        let address = client
-            .generate_address_async(bitcoincore_rpc::json::AddressType::P2shSegwit)
-            .await
-            .unwrap();
-
-        client.generate_to_address(address).await.unwrap();
+        client.generate_one_spendable_output().await.unwrap();
 
         let amount = client.get_balance(None).await.unwrap();
 
@@ -290,15 +313,37 @@ mod test {
 
         assert_eq!(number_of_transactions, 0);
 
-        let address = client
-            .generate_address_async(bitcoincore_rpc::json::AddressType::P2shSegwit)
-            .await
-            .unwrap();
-
-        client.generate_to_address(address).await.unwrap();
+        client.generate_n_blocks(101, false).await.unwrap();
 
         let number_of_transactions = client.list_transactions(1000).await.unwrap().len();
 
         assert_eq!(number_of_transactions, 101);
+    }
+
+    #[tokio::test]
+    async fn test_list_since_block() {
+        let client = build_for_test().await.unwrap();
+        let (transactions, _) = client.list_since_block(None, 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 0); // No transactions should return 0
+
+        client.generate_n_blocks(5, true).await.unwrap();
+
+        let (transactions, _) = client.list_since_block(None, 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 0); // Chain has txs but not concerning this wallet
+
+        client.generate_n_blocks(1, false).await.unwrap();
+
+        let (transactions, _) = client.list_since_block(None, 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 1); // Chain has 1 tx confirmed concerning an wallet address
+
+        let blocks = client.generate_n_blocks(1, true).await.unwrap();
+        let block_hash = blocks.last().unwrap();
+
+        let (transactions, _) = client.list_since_block(Some(*block_hash), 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 0) // No seen tx with 1 conf since block_hash
     }
 }
