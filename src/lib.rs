@@ -319,4 +319,31 @@ mod test {
 
         assert_eq!(number_of_transactions, 101);
     }
+
+    #[tokio::test]
+    async fn test_list_since_block() {
+        let client = build_for_test().await.unwrap();
+        let (transactions, _) = client.list_since_block(None, 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 0); // No transactions should return 0
+
+        client.generate_n_blocks(5, true).await.unwrap();
+
+        let (transactions, _) = client.list_since_block(None, 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 0); // Chain has txs but not concerning this wallet
+
+        client.generate_n_blocks(1, false).await.unwrap();
+
+        let (transactions, _) = client.list_since_block(None, 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 1); // Chain has 1 tx confirmed concerning an wallet address
+
+        let blocks = client.generate_n_blocks(1, true).await.unwrap();
+        let block_hash = blocks.last().unwrap();
+
+        let (transactions, _) = client.list_since_block(Some(*block_hash), 1).await.unwrap();
+
+        assert_eq!(transactions.len(), 0) // No seen tx with 1 conf since block_hash
+    }
 }
