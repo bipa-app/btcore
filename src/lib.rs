@@ -1,5 +1,6 @@
 use bitcoin::{Address, Amount, BlockHash, Txid};
 use bitcoincore_rpc::{
+    bitcoincore_rpc_json::GetTransactionResult,
     json::{AddressType, GetBalancesResult, ListTransactionResult},
     RpcApi,
 };
@@ -61,6 +62,15 @@ impl Btc {
         let client = self.client.clone();
         let res =
             tokio::task::spawn_blocking(move || client.get_balance(number_of_confirmations, None));
+        res.await.unwrap()
+    }
+
+    pub async fn get_transaction(
+        &self,
+        txid: Txid,
+    ) -> bitcoincore_rpc::Result<GetTransactionResult> {
+        let client = self.client.clone();
+        let res = tokio::task::spawn_blocking(move || client.get_transaction(&txid, Some(true)));
         res.await.unwrap()
     }
 
