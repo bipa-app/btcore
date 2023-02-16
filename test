@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if ! docker images | grep -q "regtest"; then
+    echo "Image not found. Building image..."
+    docker build -t regtest docker-bitcoin-core/.
+fi
+
 echo "Starting container..."
 
 CONTAINTER_HASH=$(docker run \
