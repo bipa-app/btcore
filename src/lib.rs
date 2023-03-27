@@ -6,6 +6,8 @@ use bitcoincore_rpc::{
 };
 use std::{collections::HashMap, sync::Arc};
 
+pub use bitcoincore_rpc as rpc;
+
 #[derive(Clone)]
 pub struct Btc {
     client: Arc<bitcoincore_rpc::Client>,
