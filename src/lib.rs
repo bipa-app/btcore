@@ -76,29 +76,6 @@ impl Btc {
         res.await.unwrap()
     }
 
-    pub async fn get_transaction_fee(
-        &self,
-        txid: Txid,
-    ) -> bitcoincore_rpc::Result<Option<TransactionFee>> {
-        let client = self.client.clone();
-        tokio::task::spawn_blocking(move || {
-            let transaction = client.get_transaction(&txid, None)?;
-
-            let Some((fee, blockhash)) = transaction.fee.zip(transaction.info.blockhash) else {
-                return Ok(None);
-            };
-
-            let raw_transaction = client.get_raw_transaction_info(&txid, Some(&blockhash))?;
-
-            Ok(Some(TransactionFee {
-                vsize: raw_transaction.vsize,
-                fee: fee.to_sat(),
-            }))
-        })
-        .await
-        .unwrap()
-    }
-
     pub async fn send_to_address(
         &self,
         address: Address,
@@ -163,11 +140,6 @@ impl Btc {
             .await
             .unwrap()
     }
-}
-
-pub struct TransactionFee {
-    pub vsize: usize,
-    pub fee: i64,
 }
 
 #[cfg(test)]
