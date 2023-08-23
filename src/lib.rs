@@ -5,6 +5,7 @@ use bitcoincore_rpc::{
     RpcApi,
 };
 use std::{collections::HashMap, future::Future, sync::Arc};
+use tracing::Instrument;
 
 pub use bitcoincore_rpc as rpc;
 
@@ -35,6 +36,7 @@ impl Btc {
             .await
             .unwrap()
         }
+        .instrument(span!("listtransactions"))
     }
 
     pub fn list_since_block(
@@ -54,6 +56,7 @@ impl Btc {
             .await
             .unwrap()
         }
+        .instrument(span!("listsinceblock"))
     }
 
     pub fn get_balances(&self) -> impl Future<Output = bitcoincore_rpc::Result<GetBalancesResult>> {
@@ -64,6 +67,7 @@ impl Btc {
                 .await
                 .unwrap()
         }
+        .instrument(span!("getbalances"))
     }
 
     pub fn get_balance(
@@ -77,6 +81,7 @@ impl Btc {
                 .await
                 .unwrap()
         }
+        .instrument(span!("getbalance"))
     }
 
     pub fn get_transaction(
@@ -90,6 +95,7 @@ impl Btc {
                 .await
                 .unwrap()
         }
+        .instrument(span!("gettransaction"))
     }
 
     pub fn send_to_address(
@@ -118,6 +124,7 @@ impl Btc {
             .await
             .unwrap()
         }
+        .instrument(span!("sendtoaddress"))
     }
 
     pub fn send_many(
@@ -142,6 +149,7 @@ impl Btc {
             .await
             .unwrap()
         }
+        .instrument(span!("sendmany"))
     }
 
     /// DANGEROUS: this call will block the thread. it is not safe unless you know what you're doing.
@@ -163,7 +171,23 @@ impl Btc {
                 .await
                 .unwrap()
         }
+        .instrument(span!("getnewaddress"))
     }
+}
+
+#[macro_export]
+macro_rules! span {
+    ($method:literal) => {
+        tracing::info_span!(
+            "btcore",
+            service.name = "btcore",
+            otel.name = $method,
+            otel.kind = "client",
+            rpc.system = "jsonrpc",
+            rpc.service = "bitcoind",
+            rpc.method = $method,
+        )
+    };
 }
 
 #[cfg(test)]
