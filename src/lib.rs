@@ -4,7 +4,8 @@ use bitcoincore_rpc::{
     json::{AddressType, GetBalancesResult, ListTransactionResult},
     RpcApi,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
+use tracing::Instrument;
 
 pub use bitcoincore_rpc as rpc;
 
@@ -22,127 +23,133 @@ pub fn build(rpc_user: &str, rpc_password: &str, rpc_url: &str) -> bitcoincore_r
 }
 
 impl Btc {
-    pub async fn list_transactions(
+    pub fn list_transactions(
         &self,
         count: usize,
-    ) -> bitcoincore_rpc::Result<Vec<ListTransactionResult>> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Vec<ListTransactionResult>>> {
         let client = self.client.clone();
 
-        tokio::task::spawn_blocking(move || {
-            client.list_transactions(Some("*"), Some(count), Some(0), None)
-        })
-        .await
-        .unwrap()
+        async move {
+            tokio::task::spawn_blocking(move || {
+                client.list_transactions(Some("*"), Some(count), Some(0), None)
+            })
+            .await
+            .unwrap()
+        }
+        .instrument(span!("listtransactions"))
     }
 
-    pub async fn list_since_block(
+    pub fn list_since_block(
         &self,
         block_hash: Option<BlockHash>,
         confirmations: usize,
-    ) -> bitcoincore_rpc::Result<(Vec<ListTransactionResult>, BlockHash)> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<(Vec<ListTransactionResult>, BlockHash)>>
+    {
         let client = self.client.clone();
 
-        tokio::task::spawn_blocking(move || {
-            client
-                .list_since_block(block_hash.as_ref(), Some(confirmations), None, None)
-                .map(|outcome| (outcome.transactions, outcome.lastblock))
-        })
-        .await
-        .unwrap()
+        async move {
+            tokio::task::spawn_blocking(move || {
+                client
+                    .list_since_block(block_hash.as_ref(), Some(confirmations), None, None)
+                    .map(|outcome| (outcome.transactions, outcome.lastblock))
+            })
+            .await
+            .unwrap()
+        }
+        .instrument(span!("listsinceblock"))
     }
 
-    pub async fn get_balances(&self) -> bitcoincore_rpc::Result<GetBalancesResult> {
+    pub fn get_balances(&self) -> impl Future<Output = bitcoincore_rpc::Result<GetBalancesResult>> {
         let client = self.client.clone();
-        let res = tokio::task::spawn_blocking(move || client.get_balances());
-        res.await.unwrap()
+
+        async move {
+            tokio::task::spawn_blocking(move || client.get_balances())
+                .await
+                .unwrap()
+        }
+        .instrument(span!("getbalances"))
     }
 
-    pub async fn get_balance(
+    pub fn get_balance(
         &self,
         number_of_confirmations: Option<usize>,
-    ) -> bitcoincore_rpc::Result<Amount> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Amount>> {
         let client = self.client.clone();
-        let res =
-            tokio::task::spawn_blocking(move || client.get_balance(number_of_confirmations, None));
-        res.await.unwrap()
+
+        async move {
+            tokio::task::spawn_blocking(move || client.get_balance(number_of_confirmations, None))
+                .await
+                .unwrap()
+        }
+        .instrument(span!("getbalance"))
     }
 
-    pub async fn get_transaction(
+    pub fn get_transaction(
         &self,
         txid: Txid,
-    ) -> bitcoincore_rpc::Result<GetTransactionResult> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<GetTransactionResult>> {
         let client = self.client.clone();
-        let res = tokio::task::spawn_blocking(move || client.get_transaction(&txid, Some(true)));
-        res.await.unwrap()
+
+        async move {
+            tokio::task::spawn_blocking(move || client.get_transaction(&txid, Some(true)))
+                .await
+                .unwrap()
+        }
+        .instrument(span!("gettransaction"))
     }
 
-    pub async fn get_transaction_fee(
-        &self,
-        txid: Txid,
-    ) -> bitcoincore_rpc::Result<Option<TransactionFee>> {
-        let client = self.client.clone();
-        tokio::task::spawn_blocking(move || {
-            let transaction = client.get_transaction(&txid, None)?;
-
-            let Some((fee, blockhash)) = transaction.fee.zip(transaction.info.blockhash) else {
-                return Ok(None);
-            };
-
-            let raw_transaction = client.get_raw_transaction_info(&txid, Some(&blockhash))?;
-
-            Ok(Some(TransactionFee {
-                vsize: raw_transaction.vsize,
-                fee: fee.to_sat(),
-            }))
-        })
-        .await
-        .unwrap()
-    }
-
-    pub async fn send_to_address(
+    pub fn send_to_address(
         &self,
         address: Address,
         amount_satoshi: i64,
         fee_rate: Option<i32>,
-    ) -> bitcoincore_rpc::Result<bitcoin::Txid> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<bitcoin::Txid>> {
         let client = self.client.clone();
-        tokio::task::spawn_blocking(move || {
-            client.send_to_address(
-                &address,
-                Amount::from_sat(amount_satoshi as u64),
-                Some(""),
-                Some(""),
-                Some(true),
-                Some(true),
-                None,
-                None,
-                None,
-                fee_rate,
-            )
-        })
-        .await
-        .unwrap()
+
+        async move {
+            tokio::task::spawn_blocking(move || {
+                client.send_to_address(
+                    &address,
+                    Amount::from_sat(amount_satoshi as u64),
+                    Some(""),
+                    Some(""),
+                    Some(true),
+                    Some(true),
+                    None,
+                    None,
+                    None,
+                    fee_rate,
+                )
+            })
+            .await
+            .unwrap()
+        }
+        .instrument(span!("sendtoaddress"))
     }
 
-    pub async fn send_many(
+    pub fn send_many(
         &self,
         addresses: HashMap<Address, Amount>,
         fee_rate: i32,
-    ) -> bitcoincore_rpc::Result<bitcoin::Txid> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<bitcoin::Txid>> {
         let client = self.client.clone();
-        tokio::task::spawn_blocking(move || {
-            client.send_many(
-                addresses,
-                Some(""),
-                None,
-                Some(true),
-                None,
-                None,
-                Some(fee_rate),
-            )
-        })
-        .await
-        .unwrap()
+
+        async move {
+            tokio::task::spawn_blocking(move || {
+                client.send_many(
+                    addresses,
+                    Some(""),
+                    None,
+                    Some(true),
+                    None,
+                    None,
+                    Some(fee_rate),
+                )
+            })
+            .await
+            .unwrap()
+        }
+        .instrument(span!("sendmany"))
     }
 
     /// DANGEROUS: this call will block the thread. it is not safe unless you know what you're doing.
@@ -153,21 +160,34 @@ impl Btc {
         self.client.get_new_address(None, Some(address_type))
     }
 
-    pub async fn generate_address_async(
+    pub fn generate_address_async(
         &self,
         address_type: AddressType,
-    ) -> bitcoincore_rpc::Result<Address> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Address>> {
         let client = self.client.clone();
 
-        tokio::task::spawn_blocking(move || client.get_new_address(None, Some(address_type)))
-            .await
-            .unwrap()
+        async move {
+            tokio::task::spawn_blocking(move || client.get_new_address(None, Some(address_type)))
+                .await
+                .unwrap()
+        }
+        .instrument(span!("getnewaddress"))
     }
 }
 
-pub struct TransactionFee {
-    pub vsize: usize,
-    pub fee: i64,
+#[macro_export]
+macro_rules! span {
+    ($method:literal) => {
+        tracing::info_span!(
+            "btcore",
+            service.name = "btcore",
+            otel.name = $method,
+            otel.kind = "client",
+            rpc.system = "jsonrpc",
+            rpc.service = "bitcoind",
+            rpc.method = $method,
+        )
+    };
 }
 
 #[cfg(test)]
