@@ -1,10 +1,10 @@
-use bitcoin::{Address, Amount, BlockHash, Txid};
+use bitcoin::{address::NetworkUnchecked, Address, Amount, BlockHash, Txid};
 use bitcoincore_rpc::{
     bitcoincore_rpc_json::GetTransactionResult,
     json::{AddressType, GetBalancesResult, ListTransactionResult},
     RpcApi,
 };
-use std::{collections::HashMap, future::Future, sync::Arc};
+use std::{future::Future, sync::Arc};
 use tracing::Instrument;
 
 pub use bitcoincore_rpc as rpc;
@@ -98,72 +98,10 @@ impl Btc {
         .instrument(span!("gettransaction"))
     }
 
-    pub fn send_to_address(
-        &self,
-        address: Address,
-        amount_satoshi: i64,
-        fee_rate: Option<i32>,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<bitcoin::Txid>> {
-        let client = self.client.clone();
-
-        async move {
-            tokio::task::spawn_blocking(move || {
-                client.send_to_address(
-                    &address,
-                    Amount::from_sat(amount_satoshi as u64),
-                    Some(""),
-                    Some(""),
-                    Some(true),
-                    Some(true),
-                    None,
-                    None,
-                    None,
-                    fee_rate,
-                )
-            })
-            .await
-            .unwrap()
-        }
-        .instrument(span!("sendtoaddress"))
-    }
-
-    pub fn send_many(
-        &self,
-        addresses: HashMap<Address, Amount>,
-        fee_rate: i32,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<bitcoin::Txid>> {
-        let client = self.client.clone();
-
-        async move {
-            tokio::task::spawn_blocking(move || {
-                client.send_many(
-                    addresses,
-                    Some(""),
-                    None,
-                    Some(true),
-                    None,
-                    None,
-                    Some(fee_rate),
-                )
-            })
-            .await
-            .unwrap()
-        }
-        .instrument(span!("sendmany"))
-    }
-
-    /// DANGEROUS: this call will block the thread. it is not safe unless you know what you're doing.
-    pub fn generate_address_blocking(
+    pub fn generate_address(
         &self,
         address_type: AddressType,
-    ) -> bitcoincore_rpc::Result<Address> {
-        self.client.get_new_address(None, Some(address_type))
-    }
-
-    pub fn generate_address_async(
-        &self,
-        address_type: AddressType,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<Address>> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Address<NetworkUnchecked>>> {
         let client = self.client.clone();
 
         async move {
