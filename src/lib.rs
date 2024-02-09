@@ -23,6 +23,17 @@ pub fn build(rpc_user: &str, rpc_password: &str, rpc_url: &str) -> bitcoincore_r
 }
 
 impl Btc {
+    pub fn get_block_count(&self) -> impl Future<Output = bitcoincore_rpc::Result<u64>> {
+        let client = self.client.clone();
+
+        async move {
+            tokio::task::spawn_blocking(move || client.get_block_count())
+                .await
+                .unwrap()
+        }
+        .instrument(span!("get_block_count"))
+    }
+
     pub fn list_transactions(
         &self,
         count: usize,
