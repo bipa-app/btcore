@@ -4,26 +4,29 @@ use bitcoincore_rpc::{
     json::{AddressType, GetBalancesResult, ListTransactionResult},
     RpcApi,
 };
+use opentelemetry::trace::{FutureExt, TraceContextExt};
 use std::{future::Future, sync::Arc};
-use tracing::Instrument;
 
 pub use bitcoincore_rpc as rpc;
 
 #[derive(Clone)]
 pub struct Btc {
     client: Arc<bitcoincore_rpc::Client>,
+    tracer: Arc<opentelemetry::global::BoxedTracer>,
 }
 
 pub fn build(rpc_user: &str, rpc_password: &str, rpc_url: &str) -> bitcoincore_rpc::Result<Btc> {
     let auth = bitcoincore_rpc::Auth::UserPass(rpc_user.into(), rpc_password.into());
 
     bitcoincore_rpc::Client::new(rpc_url, auth).map(|client| Btc {
+        tracer: Arc::new(opentelemetry::global::tracer("btcore")),
         client: Arc::new(client),
     })
 }
 
 impl Btc {
     pub fn get_block_count(&self) -> impl Future<Output = bitcoincore_rpc::Result<u64>> {
+        let span = start_span(self.tracer.as_ref(), "get_block_count");
         let client = self.client.clone();
 
         async move {
@@ -31,13 +34,14 @@ impl Btc {
                 .await
                 .unwrap()
         }
-        .instrument(span!("get_block_count"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 
     pub fn list_transactions(
         &self,
         count: usize,
     ) -> impl Future<Output = bitcoincore_rpc::Result<Vec<ListTransactionResult>>> {
+        let span = start_span(self.tracer.as_ref(), "listtransactions");
         let client = self.client.clone();
 
         async move {
@@ -47,7 +51,7 @@ impl Btc {
             .await
             .unwrap()
         }
-        .instrument(span!("listtransactions"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 
     pub fn list_since_block(
@@ -56,6 +60,7 @@ impl Btc {
         confirmations: usize,
     ) -> impl Future<Output = bitcoincore_rpc::Result<(Vec<ListTransactionResult>, BlockHash)>>
     {
+        let span = start_span(self.tracer.as_ref(), "listsinceblock");
         let client = self.client.clone();
 
         async move {
@@ -67,10 +72,11 @@ impl Btc {
             .await
             .unwrap()
         }
-        .instrument(span!("listsinceblock"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 
     pub fn get_balances(&self) -> impl Future<Output = bitcoincore_rpc::Result<GetBalancesResult>> {
+        let span = start_span(self.tracer.as_ref(), "getbalances");
         let client = self.client.clone();
 
         async move {
@@ -78,13 +84,14 @@ impl Btc {
                 .await
                 .unwrap()
         }
-        .instrument(span!("getbalances"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 
     pub fn get_balance(
         &self,
         number_of_confirmations: Option<usize>,
     ) -> impl Future<Output = bitcoincore_rpc::Result<Amount>> {
+        let span = start_span(self.tracer.as_ref(), "getbalance");
         let client = self.client.clone();
 
         async move {
@@ -92,13 +99,14 @@ impl Btc {
                 .await
                 .unwrap()
         }
-        .instrument(span!("getbalance"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 
     pub fn get_transaction(
         &self,
         txid: Txid,
     ) -> impl Future<Output = bitcoincore_rpc::Result<GetTransactionResult>> {
+        let span = start_span(self.tracer.as_ref(), "gettransaction");
         let client = self.client.clone();
 
         async move {
@@ -106,13 +114,14 @@ impl Btc {
                 .await
                 .unwrap()
         }
-        .instrument(span!("gettransaction"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 
     pub fn generate_address(
         &self,
         address_type: AddressType,
     ) -> impl Future<Output = bitcoincore_rpc::Result<Address<NetworkUnchecked>>> {
+        let span = start_span(self.tracer.as_ref(), "getnewaddress");
         let client = self.client.clone();
 
         async move {
@@ -120,23 +129,23 @@ impl Btc {
                 .await
                 .unwrap()
         }
-        .instrument(span!("getnewaddress"))
+        .with_context(opentelemetry::Context::current_with_span(span))
     }
 }
 
-#[macro_export]
-macro_rules! span {
-    ($method:literal) => {
-        tracing::info_span!(
-            "btcore",
-            service.name = "btcore",
-            otel.name = $method,
-            otel.kind = "client",
-            rpc.system = "jsonrpc",
-            rpc.service = "bitcoind",
-            rpc.method = $method,
-        )
-    };
+fn start_span(
+    tracer: &impl opentelemetry::trace::Tracer,
+    method: &'static str,
+) -> impl opentelemetry::trace::Span {
+    opentelemetry::trace::SpanBuilder::from_name(method)
+        .with_kind(opentelemetry::trace::SpanKind::Client)
+        .with_attributes([
+            opentelemetry::KeyValue::new("service.name", "btcore"),
+            opentelemetry::KeyValue::new("rpc.service", "bitcoind"),
+            opentelemetry::KeyValue::new("rpc.system", "jsonrpc"),
+            opentelemetry::KeyValue::new("rpc.method", method),
+        ])
+        .start(tracer)
 }
 
 #[cfg(test)]
@@ -153,6 +162,7 @@ mod test {
 
         let auth = bitcoincore_rpc::Auth::UserPass(USERNAME.into(), PASSWORD.into());
         let client = bitcoincore_rpc::Client::new(RPC_URL, auth).map(|client| Btc {
+            tracer: Arc::new(opentelemetry::global::tracer("btcore")),
             client: Arc::new(client),
         })?;
 
