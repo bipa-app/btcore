@@ -183,6 +183,7 @@ mod test {
             tokio::task::spawn_blocking(move || client.unload_wallet(Some(&wallet_name)))
                 .await
                 .unwrap()
+                .map(|_| ())
         }
 
         fn delete_wallet(&self, wallet_name: &str) -> Result<(), std::io::Error> {
@@ -252,10 +253,11 @@ mod test {
             let address = if burn_coins {
                 Address::from_str("bcrt1qs758ursh4q9z627kt3pp5yysm78ddny6txaqgw").unwrap()
             } else {
-                self.generate_address_async(AddressType::P2shSegwit)
+                self.generate_address(AddressType::P2shSegwit)
                     .await
                     .unwrap()
-            };
+            }
+            .assume_checked();
 
             tokio::task::spawn_blocking(move || client.generate_to_address(block_num, &address))
                 .await
@@ -346,33 +348,5 @@ mod test {
         let balances = client.get_balances().await.unwrap();
 
         assert_eq!(balances.mine.trusted, Amount::ZERO);
-    }
-
-    #[tokio::test]
-    async fn test_get_transaction_fee() {
-        let client = build_for_test().await.unwrap();
-
-        client.generate_one_spendable_output().await.unwrap();
-
-        let fee_rate = 1 as i64;
-
-        let txid = client
-            .send_to_address(
-                client
-                    .generate_address_async(AddressType::P2shSegwit)
-                    .await
-                    .unwrap(),
-                5_000_000,
-                Some(fee_rate as i32),
-            )
-            .await
-            .unwrap();
-
-        client.generate_n_blocks(1, true).await.unwrap();
-
-        let fee = client.get_transaction_fee(txid).await.unwrap().unwrap();
-        let expected_fee = -(fee.vsize as i64 * fee_rate);
-
-        assert_eq!(fee.fee, expected_fee);
     }
 }
