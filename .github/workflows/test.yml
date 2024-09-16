@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions-rs/toolchain@v1
         with:
-            toolchain: 1.67.1
+            toolchain: 1.81.0
             profile: minimal
             components: clippy
             default: true
