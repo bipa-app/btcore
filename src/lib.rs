@@ -25,7 +25,7 @@ pub fn build(rpc_user: &str, rpc_password: &str, rpc_url: &str) -> bitcoincore_r
 }
 
 impl Btc {
-    pub fn get_block_count(&self) -> impl Future<Output = bitcoincore_rpc::Result<u64>> {
+    pub fn get_block_count(&self) -> impl Future<Output = bitcoincore_rpc::Result<u64>> + use<> {
         let span = start_span(self.tracer.as_ref(), "get_block_count");
         let client = self.client.clone();
 
@@ -40,7 +40,7 @@ impl Btc {
     pub fn list_transactions(
         &self,
         count: usize,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<Vec<ListTransactionResult>>> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Vec<ListTransactionResult>>> + use<> {
         let span = start_span(self.tracer.as_ref(), "listtransactions");
         let client = self.client.clone();
 
@@ -58,7 +58,7 @@ impl Btc {
         &self,
         block_hash: Option<BlockHash>,
         confirmations: usize,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<(Vec<ListTransactionResult>, BlockHash)>>
+    ) -> impl Future<Output = bitcoincore_rpc::Result<(Vec<ListTransactionResult>, BlockHash)>> + use<>
     {
         let span = start_span(self.tracer.as_ref(), "listsinceblock");
         let client = self.client.clone();
@@ -75,7 +75,9 @@ impl Btc {
         .with_context(opentelemetry::Context::current_with_span(span))
     }
 
-    pub fn get_balances(&self) -> impl Future<Output = bitcoincore_rpc::Result<GetBalancesResult>> {
+    pub fn get_balances(
+        &self,
+    ) -> impl Future<Output = bitcoincore_rpc::Result<GetBalancesResult>> + use<> {
         let span = start_span(self.tracer.as_ref(), "getbalances");
         let client = self.client.clone();
 
@@ -90,7 +92,7 @@ impl Btc {
     pub fn get_balance(
         &self,
         number_of_confirmations: Option<usize>,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<Amount>> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Amount>> + use<> {
         let span = start_span(self.tracer.as_ref(), "getbalance");
         let client = self.client.clone();
 
@@ -105,7 +107,7 @@ impl Btc {
     pub fn get_transaction(
         &self,
         txid: Txid,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<GetTransactionResult>> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<GetTransactionResult>> + use<> {
         let span = start_span(self.tracer.as_ref(), "gettransaction");
         let client = self.client.clone();
 
@@ -120,7 +122,7 @@ impl Btc {
     pub fn generate_address(
         &self,
         address_type: AddressType,
-    ) -> impl Future<Output = bitcoincore_rpc::Result<Address<NetworkUnchecked>>> {
+    ) -> impl Future<Output = bitcoincore_rpc::Result<Address<NetworkUnchecked>>> + use<> {
         let span = start_span(self.tracer.as_ref(), "getnewaddress");
         let client = self.client.clone();
 
@@ -133,10 +135,10 @@ impl Btc {
     }
 }
 
-fn start_span(
-    tracer: &impl opentelemetry::trace::Tracer,
+fn start_span<T: opentelemetry::trace::Tracer>(
+    tracer: &T,
     method: &'static str,
-) -> impl opentelemetry::trace::Span {
+) -> impl opentelemetry::trace::Span + use<T> {
     opentelemetry::trace::SpanBuilder::from_name(method)
         .with_kind(opentelemetry::trace::SpanKind::Client)
         .with_attributes([
