@@ -174,9 +174,9 @@ mod test {
     }
 
     impl Btc {
-        async fn create_wallet<'a>(
+        async fn create_wallet(
             &self,
-            wallet_name: &'a str,
+            wallet_name: &str,
         ) -> bitcoincore_rpc::Result<LoadWalletResult> {
             let client = self.client.clone();
             let wallet_name = wallet_name.to_owned();
@@ -188,7 +188,7 @@ mod test {
             .unwrap()
         }
 
-        async fn unload_wallet<'a>(&self, wallet_name: &'a str) -> bitcoincore_rpc::Result<()> {
+        async fn unload_wallet(&self, wallet_name: &str) -> bitcoincore_rpc::Result<()> {
             let client = self.client.clone();
             let wallet_name = wallet_name.to_owned();
 
@@ -201,7 +201,7 @@ mod test {
         fn delete_wallet(&self, wallet_name: &str) -> Result<(), std::io::Error> {
             use std::fs;
 
-            let path = ".btc/regtest/wallets/".to_owned() + &wallet_name;
+            let path = ".btc/regtest/wallets/".to_owned() + wallet_name;
 
             fs::remove_dir_all(path)
         }
@@ -210,7 +210,7 @@ mod test {
             self.unload_wallet(wallet_name).await.ok();
             self.delete_wallet(wallet_name).ok();
             self.invalidate_all_blocks().await;
-            self.create_wallet(wallet_name.into()).await?;
+            self.create_wallet(wallet_name).await?;
 
             Ok(())
         }
